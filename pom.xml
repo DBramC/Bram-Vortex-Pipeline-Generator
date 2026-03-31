@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.christos_bramis</groupId>
-	<artifactId>bram_vortex_ansible_generator</artifactId>
+	<artifactId>bram_vortex_pipeline_generator</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name/>
 	<description/>

@@ -1,6 +1,6 @@
-package com.christos_bramis.bram_vortex_ansible_generator.repository;
+package com.christos_bramis.bram_vortex_pipeline_generator.repository;
 
-import com.christos_bramis.bram_vortex_ansible_generator.entity.AnalysisJob;
+import com.christos_bramis.bram_vortex_pipeline_generator.entity.AnalysisJob;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

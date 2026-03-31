@@ -1,4 +1,4 @@
-package com.christos_bramis.bram_vortex_ansible_generator.service;
+package com.christos_bramis.bram_vortex_pipeline_generator.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.vault.core.VaultTemplate;

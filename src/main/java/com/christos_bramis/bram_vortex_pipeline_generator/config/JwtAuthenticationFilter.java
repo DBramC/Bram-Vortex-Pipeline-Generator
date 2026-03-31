@@ -1,6 +1,6 @@
-package com.christos_bramis.bram_vortex_ansible_generator.config;
+package com.christos_bramis.bram_vortex_pipeline_generator.config;
 
-import com.christos_bramis.bram_vortex_ansible_generator.service.VaultService;
+import com.christos_bramis.bram_vortex_pipeline_generator.service.VaultService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
@@ -32,10 +32,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String pem = vaultService.getSigningPublicKey();
             if (pem != null) {
                 this.publicKey = vaultService.getKeyFromPEM(pem);
-                System.out.println("✅ Ansible Gen: JWT Public Key loaded.");
+                System.out.println("✅ Pipeline Gen: JWT Public Key loaded.");
             }
         } catch (Exception e) {
-            System.err.println("❌ Critical Error loading Public Key in Ansible Gen: " + e.getMessage());
+            System.err.println("❌ Critical Error loading Public Key in Pipeline Gen: " + e.getMessage());
         }
     }
 
@@ -59,7 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 /* * Η ΑΛΛΑΓΗ ΕΔΩ:
                  * Αποθηκεύουμε το 'token' στα credentials.
-                 * Αυτό επιτρέπει στο Ansible Service να έχει πρόσβαση στο JWT
+                 * Αυτό επιτρέπει στο Pipeline Service να έχει πρόσβαση στο JWT
                  * αν χρειαστεί να το προωθήσει σε επόμενο service (π.χ. Pipeline).
                  */
                 UsernamePasswordAuthenticationToken auth =
@@ -68,7 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception e) {
-                System.out.println("⛔ Invalid Token in Ansible Gen: " + e.getMessage());
+                System.out.println("⛔ Invalid Token in Pipeline Gen: " + e.getMessage());
             }
         }
         filterChain.doFilter(request, response);

@@ -1,9 +1,9 @@
-package com.christos_bramis.bram_vortex_ansible_generator.service;
+package com.christos_bramis.bram_vortex_pipeline_generator.service;
 
-import com.christos_bramis.bram_vortex_ansible_generator.entity.AnalysisJob;
-import com.christos_bramis.bram_vortex_ansible_generator.entity.AnsibleJob;
-import com.christos_bramis.bram_vortex_ansible_generator.repository.AnalysisJobRepository;
-import com.christos_bramis.bram_vortex_ansible_generator.repository.AnsibleJobRepository;
+import com.christos_bramis.bram_vortex_pipeline_generator.entity.AnalysisJob;
+import com.christos_bramis.bram_vortex_pipeline_generator.entity.PipelineJob;
+import com.christos_bramis.bram_vortex_pipeline_generator.repository.AnalysisJobRepository;
+import com.christos_bramis.bram_vortex_pipeline_generator.repository.PipelineJobRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
@@ -18,31 +18,31 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Service
-public class AnsibleService {
+public class PipelineService {
 
-    private final AnsibleJobRepository ansibleJobRepository;
+    private final PipelineJobRepository pipelineJobRepository;
     private final AnalysisJobRepository analysisJobRepository;
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
 
-    public AnsibleService(AnsibleJobRepository ansibleJobRepository,
-                          AnalysisJobRepository analysisJobRepository,
-                          ChatModel chatModel) {
-        this.ansibleJobRepository = ansibleJobRepository;
+    public PipelineService(PipelineJobRepository pipelineJobRepository,
+                           AnalysisJobRepository analysisJobRepository,
+                           ChatModel chatModel) {
+        this.pipelineJobRepository = pipelineJobRepository;
         this.analysisJobRepository = analysisJobRepository;
         this.chatModel = chatModel;
         this.objectMapper = new ObjectMapper();
     }
 
-    public void generateAndSaveAnsible(String ansibleJobId, String analysisJobId, String userId) {
-        System.out.println("\n🚀 [VORTEX-ANSIBLE] Starting Generation for Job: " + ansibleJobId);
+    public void generateAndSavePipeline(String pipelineJobId, String analysisJobId, String userId) {
+        System.out.println("\n🚀 [VORTEX-PIPELINE] Starting Generation for Job: " + pipelineJobId);
 
-        AnsibleJob job = new AnsibleJob();
-        job.setId(ansibleJobId);
+        PipelineJob job = new PipelineJob();
+        job.setId(pipelineJobId);
         job.setAnalysisJobId(analysisJobId);
         job.setUserId(userId);
         job.setStatus("GENERATING");
-        ansibleJobRepository.save(job);
+        pipelineJobRepository.save(job);
 
         CompletableFuture.runAsync(() -> {
             try {
@@ -56,8 +56,8 @@ public class AnsibleService {
 
                 // 2. AI Dispatch
                 String prompt = String.format("""
-                    You are a Principal DevOps Engineer and Ansible Specialist.
-                    Generate a PRODUCTION-READY Ansible structure to deploy a Spring Boot application on a Virtual Machine.
+                    You are a Principal DevOps Engineer and Pipeline Specialist.
+                    Generate a PRODUCTION-READY Pipeline structure to deploy a Spring Boot application on a Virtual Machine.
                 
                     --- ARCHITECTURAL BLUEPRINT (JSON) ---
                     %s
@@ -86,7 +86,7 @@ public class AnsibleService {
                     }
                     """, blueprintJson);
 
-                System.out.println("🧠 [ANSIBLE] Calling AI...");
+                System.out.println("🧠 [PIPELINE] Calling AI...");
                 String aiResponse = chatModel.call(prompt);
 
                 // ΔΙΑΓΝΩΣΤΙΚΟ: Βλέπουμε τι ακριβώς έστειλε το AI
@@ -100,7 +100,7 @@ public class AnsibleService {
                 }
 
                 // 4. Zipping
-                System.out.println("🤐 [ANSIBLE] Creating ZIP for " + asFiles.size() + " files...");
+                System.out.println("🤐 [PIPELINE] Creating ZIP for " + asFiles.size() + " files...");
                 byte[] zipBytes = createZipInMemory(asFiles);
 
                 if (zipBytes == null || zipBytes.length < 100) {
@@ -108,15 +108,15 @@ public class AnsibleService {
                 }
 
                 // 5. Finalize
-                job.setAnsibleZip(zipBytes);
+                job.setPipelineZip(zipBytes);
                 job.setStatus("COMPLETED");
-                ansibleJobRepository.save(job);
-                System.out.println("✅ [ANSIBLE] Success! ZIP size: " + zipBytes.length + " bytes.");
+                pipelineJobRepository.save(job);
+                System.out.println("✅ [PIPELINE] Success! ZIP size: " + zipBytes.length + " bytes.");
 
             } catch (Exception e) {
-                System.err.println("❌ [ANSIBLE ERROR]: " + e.getMessage());
+                System.err.println("❌ [PIPELINE ERROR]: " + e.getMessage());
                 job.setStatus("FAILED");
-                ansibleJobRepository.save(job);
+                pipelineJobRepository.save(job);
             }
         });
     }

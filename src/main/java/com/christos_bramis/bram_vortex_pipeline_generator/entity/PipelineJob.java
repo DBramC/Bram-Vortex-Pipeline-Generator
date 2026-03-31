@@ -1,4 +1,4 @@
-package com.christos_bramis.bram_vortex_ansible_generator.entity;
+package com.christos_bramis.bram_vortex_pipeline_generator.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,8 +8,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "ansible_jobs") // Ο δικός του, ανεξάρτητος πίνακας
-public class AnsibleJob {
+@Table(name = "pipeline_jobs") // Ο δικός του, ανεξάρτητος πίνακας
+public class PipelineJob {
 
     @Id
     private String id; // Το ID αυτού του Terraform Job
@@ -24,7 +24,7 @@ public class AnsibleJob {
     // ΕΔΩ ΕΙΝΑΙ Η ΜΑΓΕΙΑ: Η Postgres θα το κάνει BYTEA (BLOB)
     @JdbcTypeCode(SqlTypes.BINARY)
     @Column(name = "terraform_zip", columnDefinition = "bytea")
-    private byte[] ansibleZip;
+    private byte[] pipelineZip;
 
     // --- Getters & Setters ---
     public String getId() { return id; }
@@ -39,6 +39,6 @@ public class AnsibleJob {
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
-    public byte[] getAnsibleZip() { return ansibleZip; }
-    public void setAnsibleZip(byte[] ansibleZip) { this.ansibleZip = ansibleZip; }
+    public byte[] getPipelineZip() { return pipelineZip; }
+    public void setPipelineZip(byte[] pipelineZip) { this.pipelineZip = pipelineZip; }
 }

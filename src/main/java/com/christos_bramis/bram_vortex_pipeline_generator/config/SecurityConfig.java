@@ -1,4 +1,4 @@
-package com.christos_bramis.bram_vortex_ansible_generator.config;
+package com.christos_bramis.bram_vortex_pipeline_generator.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,9 +41,9 @@ public class SecurityConfig {
 
                 // 4. Κανόνες Πρόσβασης
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/ansible/generate/**").authenticated()
-                        .requestMatchers("/ansible/download/**").authenticated()
-                        .requestMatchers("/ansible/status/**").authenticated()
+                        .requestMatchers("/pipeline/generate/**").authenticated()
+                        .requestMatchers("/pipeline/download/**").authenticated()
+                        .requestMatchers("/pipeline/status/**").authenticated()
                         .anyRequest().authenticated()
                 )
 

@@ -1,4 +1,4 @@
-package com.christos_bramis.bram_vortex_ansible_generator;
+package com.christos_bramis.bram_vortex_pipeline_generator;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

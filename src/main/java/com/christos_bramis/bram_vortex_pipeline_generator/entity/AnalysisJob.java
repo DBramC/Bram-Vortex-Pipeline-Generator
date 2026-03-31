@@ -1,4 +1,4 @@
-package com.christos_bramis.bram_vortex_ansible_generator.entity;
+package com.christos_bramis.bram_vortex_pipeline_generator.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
