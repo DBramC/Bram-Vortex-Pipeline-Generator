@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,22 +29,23 @@ public class Pipeline {
     @PostMapping("/generate/{analysisJobId}")
     public ResponseEntity<String> generatePipeline(
             @PathVariable String analysisJobId,
-            Authentication auth) {
+            @AuthenticationPrincipal Jwt jwt) {
 
-        // 1. Τραβάμε το raw Token String από το JWT principal
-        String token = ((Jwt) Objects.requireNonNull(auth.getPrincipal())).getTokenValue();
-        String userId = auth.getName();
+        // 1. Τώρα μπορείς να πάρεις το Token και το UserID χωρίς κίνδυνο για Exception
+        String token = jwt.getTokenValue();
+        String userId = jwt.getSubject(); // Παίρνει το sub/username από το token
 
         System.out.println("🚀 [PIPELINE CONTROLLER] Webhook received. User: " + userId);
 
         try {
             String pipelineJobId = UUID.randomUUID().toString();
 
-            // 2. Περνάμε και το TOKEN ως παράμετρο στο Service
+            // 2. Περνάμε το TOKEN στο Service
             pipelineService.generateAndSavePipeline(pipelineJobId, analysisJobId, userId, token);
 
             return ResponseEntity.ok(pipelineJobId);
         } catch (Exception e) {
+            System.err.println("❌ [CONTROLLER ERROR]: " + e.getMessage());
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
