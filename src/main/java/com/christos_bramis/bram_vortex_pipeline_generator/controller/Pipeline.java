@@ -78,19 +78,5 @@ public class Pipeline {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Status endpoint βάσει Analysis ID (για το Frontend)
-     */
-    @GetMapping("/status/by-analysis/{analysisJobId}")
-    public ResponseEntity<String> getStatusByAnalysis(@PathVariable String analysisJobId, Authentication auth) {
-        String userId = auth.getName();
-        return pipelineJobRepository.findByAnalysisJobId(analysisJobId)
-                .map(job -> {
-                    if (!job.getUserId().equals(userId)) {
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<String>build();
-                    }
-                    return ResponseEntity.ok(job.getStatus());
-                })
-                .orElse(ResponseEntity.ok("GENERATING")); // Αν δεν έχει ξεκινήσει ακόμα
-    }
+
 }
