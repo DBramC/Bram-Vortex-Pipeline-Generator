@@ -50,27 +50,45 @@ public class PipelineService {
                 AnalysisJob analysisJob = analysisJobRepository.findById(analysisJobId)
                         .orElseThrow(() -> new RuntimeException("Analysis blueprint not found"));
 
-                // Η ΣΩΣΤΗ ΓΡΑΜΜΗ: Πρόσεξε το .toPrettyString() πριν το ερωτηματικό
                 String blueprintJson = analysisJob.getBlueprintJson() != null ?
                         analysisJob.getBlueprintJson() : "{}";
 
-                // 2. AI Dispatch
+                // 🌟 ΕΞΥΠΝΗ ΕΞΑΓΩΓΗ: Παίρνουμε το computeCategory απευθείας από το JSON
+                Map<String, Object> blueprintMap = objectMapper.readValue(blueprintJson, new TypeReference<Map<String, Object>>() {});
+                String computeType = (String) blueprintMap.get("computeCategory");
+
+                // Αν δεν υπάρχει, ρίχνουμε Exception για να σταματήσει η διαδικασία (Fail-Fast)
+                if (computeType == null || computeType.trim().isEmpty()) {
+                    throw new RuntimeException("CRITICAL: 'computeCategory' is missing from the Blueprint. Cannot determine deployment target.");
+                }
+
+                System.out.println("🚀 [VORTEX-PIPELINE] Target detected from JSON: " + computeType);
+
+                // 2. AI Dispatch - CI/CD Expert Prompt
                 String prompt = String.format("""
-                    You are a Principal DevOps Engineer and Pipeline Specialist.
-                    Generate a PRODUCTION-READY Pipeline structure to deploy a Spring Boot application on a Virtual Machine.
+                    You are a Principal DevOps Engineer and CI/CD Specialist.
+                    Generate a PRODUCTION-READY GitHub Actions workflow (.yml) to build, push, and deploy a containerized application.
                 
                     --- ARCHITECTURAL BLUEPRINT (JSON) ---
                     %s
                     --------------------------------------
+                    
+                    --- DEPLOYMENT TARGET ---
+                    Compute Type: %s
+                    -------------------------
 
                     ENGINEERING REQUIREMENTS:
-                    1. **OS Setup**: Assume Ubuntu/Debian. Update apt cache and install Java (JDK 21).
-                    2. **Application Deployment**: 
-                       - Create a dedicated system user.
-                       - Setup a directory structure in `/opt/app`.
-                       - Generate a Systemd unit file (`app.service`) to manage the JAR.
-                    3. **Environment**: Inject configurations as environment variables.
-                    4. **Networking**: Open firewall for the target port.
+                    1. **Trigger**: The pipeline should trigger on 'push' to the 'main' or 'master' branch.
+                    2. **Build & Push**:
+                       - Checkout the code.
+                       - Log in to the GitHub Container Registry (ghcr.io) using the automatic `secrets.GITHUB_TOKEN`.
+                       - Build the Docker image (if applicable based on ciCdMetadata).
+                       - Push the image to `ghcr.io/${{ github.repository }}:latest`.
+                    3. **Deployment Step**:
+                       - Based on the "Compute Type" (%s), add the final deployment step.
+                       - If VM or Virtual Machine: SSH into the instance using `secrets.VM_SSH_KEY` and run/update the docker container.
+                       - If Kubernetes (K8S): Set up Kubeconfig using `secrets.KUBECONFIG` and run `kubectl apply` or `kubectl set image`.
+                       - If Managed Container: Use standard cloud actions to update the target service.
 
                     OUTPUT FORMAT:
                     - Respond ONLY with a SINGLE, VALID JSON object.
@@ -79,17 +97,13 @@ public class PipelineService {
     
                     JSON STRUCTURE:
                     {
-                      "playbook.yml": "...",
-                      "inventory.ini": "...",
-                      "vars.yml": "...",
-                      "app.service.j2": "..."
+                      ".github/workflows/deploy.yml": "YOUR_YAML_CONTENT_HERE"
                     }
-                    """, blueprintJson);
+                    """, blueprintJson, computeType, computeType);
 
                 System.out.println("🧠 [PIPELINE] Calling AI...");
                 String aiResponse = chatModel.call(prompt);
 
-                // ΔΙΑΓΝΩΣΤΙΚΟ: Βλέπουμε τι ακριβώς έστειλε το AI
                 System.out.println("DEBUG AI RAW RESPONSE length: " + (aiResponse != null ? aiResponse.length() : 0));
 
                 // 3. Robust Parsing
@@ -143,7 +157,6 @@ public class PipelineService {
     }
 
     private byte[] createZipInMemory(Map<String, String> files) throws Exception {
-        // Το baos μένει έξω από το try-with-resources του zos, για να το επιστρέψουμε στο τέλος.
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             for (Map.Entry<String, String> entry : files.entrySet()) {
@@ -154,7 +167,7 @@ public class PipelineService {
                 zos.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
                 zos.closeEntry();
             }
-            zos.finish(); // Οριστικοποίηση του ZIP structure
+            zos.finish();
             zos.flush();
         }
         return baos.toByteArray();
