@@ -1,6 +1,5 @@
 package com.christos_bramis.bram_vortex_pipeline_generator.service;
 
-import ch.qos.logback.core.joran.spi.HttpUtil;
 import com.christos_bramis.bram_vortex_pipeline_generator.entity.AnalysisJob;
 import com.christos_bramis.bram_vortex_pipeline_generator.entity.PipelineJob;
 import com.christos_bramis.bram_vortex_pipeline_generator.repository.AnalysisJobRepository;
@@ -10,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +25,6 @@ public class PipelineService {
     private final AnalysisJobRepository analysisJobRepository;
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
-
 
     public PipelineService(PipelineJobRepository pipelineJobRepository,
                            AnalysisJobRepository analysisJobRepository,
@@ -57,9 +54,17 @@ public class PipelineService {
                 String blueprintJson = analysisJob.getBlueprintJson() != null ?
                         analysisJob.getBlueprintJson() : "{}";
 
-                // 🌟 ΕΞΥΠΝΗ ΕΞΑΓΩΓΗ: Παίρνουμε το computeCategory απευθείας από το JSON
+                // 🌟 ΕΞΥΠΝΗ ΕΞΑΓΩΓΗ: Παίρνουμε το computeCategory & targetPort απευθείας από το JSON
                 Map<String, Object> blueprintMap = objectMapper.readValue(blueprintJson, new TypeReference<Map<String, Object>>() {});
                 String computeType = (String) blueprintMap.get("computeCategory");
+
+                // Δυναμική εξαγωγή της πόρτας (με fallback το 8080)
+                int targetPort = 8080;
+                if (blueprintMap.get("targetContainerPort") != null) {
+                    try {
+                        targetPort = Integer.parseInt(blueprintMap.get("targetContainerPort").toString());
+                    } catch (NumberFormatException ignored) {}
+                }
 
                 // Αν δεν υπάρχει, ρίχνουμε Exception για να σταματήσει η διαδικασία (Fail-Fast)
                 if (computeType == null || computeType.trim().isEmpty()) {
@@ -67,11 +72,11 @@ public class PipelineService {
                 }
 
                 System.out.println("🚀 [VORTEX-PIPELINE] Target detected from JSON: " + computeType);
+                System.out.println("🔌 [VORTEX-PIPELINE] Target Port detected: " + targetPort);
 
-                // 2. AI Dispatch - CI/CD Expert Prompt
+                // 2. AI Dispatch - CI/CD Expert Prompt (ΑΤΟΦΙΟ & Docker-Ready)
                 String prompt = String.format("""
-                    You are a Principal DevOps Engineer and CI/CD Specialist.
-                    Generate a PRODUCTION-READY GitHub Actions workflow (.yml) to build, push, and deploy a containerized application.
+                    You are a Principal CI/CD Engineer. Your task is to generate a PRODUCTION-READY GitHub Actions workflow (`.github/workflows/deploy.yml`) to build, push, and deploy a containerized application using GitHub Packages (GHCR).
                 
                     --- ARCHITECTURAL BLUEPRINT (JSON) ---
                     %s
@@ -81,29 +86,44 @@ public class PipelineService {
                     Compute Type: %s
                     -------------------------
 
-                    ENGINEERING REQUIREMENTS:
-                    1. **Trigger**: The pipeline should trigger on 'push' to the 'main' or 'master' branch.
-                    2. **Build & Push**:
-                       - Checkout the code.
-                       - Log in to the GitHub Container Registry (ghcr.io) using the automatic `secrets.GITHUB_TOKEN`.
-                       - Build the Docker image (if applicable based on ciCdMetadata).
-                       - Push the image to `ghcr.io/${{ github.repository }}:latest`.
-                    3. **Deployment Step**:
-                       - Based on the "Compute Type" (%s), add the final deployment step.
-                       - If VM or Virtual Machine: SSH into the instance using `secrets.VM_SSH_KEY` and run/update the docker container.
-                       - If Kubernetes (K8S): Set up Kubeconfig using `secrets.KUBECONFIG` and run `kubectl apply` or `kubectl set image`.
-                       - If Managed Container: Use standard cloud actions to update the target service.
+                    ENGINEERING REQUIREMENTS & STRICT CONSTRAINTS:
+                    1. **Trigger**: The pipeline MUST trigger on 'push' to the 'main' or 'master' branch.
+                    
+                    2. **Build & Push (GHCR EXCLUSIVELY)**:
+                       - Examine the Blueprint's 'ciCdMetadata'.
+                       - Log in to GitHub Container Registry (`ghcr.io`) using `${{ github.actor }}` and `${{ secrets.GITHUB_TOKEN }}`.
+                       - IF 'hasDockerfile' is false: First, set up the build environment (e.g., JDK), execute the 'buildCommands' to generate the artifact, dynamically create a basic Dockerfile in the pipeline to package it, and then build/push.
+                       - IF 'hasDockerfile' is true: Assume the project has a Dockerfile. Do NOT run separate 'buildCommands'. Just build the Docker image and push it to `ghcr.io/${{ github.repository }}:latest`. Do NOT use Docker Hub.
 
-                    OUTPUT FORMAT:
+                    3. **Deployment Step (Branching by Compute Type)**:
+                       - **IF Compute Type is 'VM' or 'Virtual Machine'**:
+                         - Use `appleboy/ssh-action@v1.0.3` to connect to the target Virtual Machine.
+                         - Authenticate using EXACTLY these secrets: `${{ secrets.VM_HOST }}`, `${{ secrets.VM_USER }}`, and `${{ secrets.VM_SSH_KEY }}`.
+                         - The SSH script MUST:
+                           a) Log in to `ghcr.io` with `${{ secrets.GITHUB_TOKEN }}`.
+                           b) Pull the latest image.
+                           c) Stop and remove the existing container gracefully (`docker stop app || true` and `docker rm app || true`).
+                           d) Run the new container in detached mode (`-d`) with restart policy `unless-stopped`.
+                           e) Map port %d (Host) to port %d (Container).
+                           f) Inject ALL sensitive database configurations from 'configurationSettings' as environment variables using GitHub Secrets (e.g., `-e SPRING_DATASOURCE_URL='${{ secrets.DB_URL }}'`).
+
+                       - **IF Compute Type is 'Kubernetes' or 'K8S'**:
+                         - Authenticate to the cluster using `${{ secrets.KUBECONFIG }}`.
+                         - Apply configurations or run `kubectl rollout restart deployment/<app-name>`.
+
+                       - **IF Compute Type is 'Managed Container'**:
+                         - Use standard cloud provider actions to update the target service/task definition.
+
+                    OUTPUT FORMAT (CRITICAL):
                     - Respond ONLY with a SINGLE, VALID JSON object.
-                    - NO markdown blocks (```json).
+                    - NO markdown blocks (e.g., no ```json).
                     - NO conversational text.
     
                     JSON STRUCTURE:
                     {
-                      ".github/workflows/deploy.yml": "YOUR_YAML_CONTENT_HERE"
+                      ".github/workflows/deploy.yml": "<raw yaml content here>"
                     }
-                    """, blueprintJson, computeType, computeType);
+                    """, blueprintJson, computeType, targetPort, targetPort);
 
                 System.out.println("🧠 [PIPELINE] Calling AI...");
                 String aiResponse = chatModel.call(prompt);
@@ -149,12 +169,10 @@ public class PipelineService {
 
         try {
             String clean = response.trim();
-            // Αφαίρεση markdown αν το AI παρακούσει
             if (clean.startsWith("```")) {
                 clean = clean.replaceAll("^```json\\s*", "").replaceAll("```$", "").trim();
             }
 
-            // Χρήση ObjectMapper για μετατροπή του String σε Map
             return objectMapper.readValue(clean, new TypeReference<HashMap<String, String>>() {});
         } catch (Exception e) {
             System.err.println("⚠️ [PARSING ERROR] Failed to convert AI response to Map: " + e.getMessage());
@@ -169,11 +187,10 @@ public class PipelineService {
         RestClient internalClient = RestClient.create();
         internalClient.post()
                 .uri(url)
-                .header("Authorization", "Bearer " + token) // 👈 Το token επιστρέφει στον Analyzer
+                .header("Authorization", "Bearer " + token)
                 .retrieve()
                 .toBodilessEntity();
     }
-
 
     private byte[] createZipInMemory(Map<String, String> files) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
