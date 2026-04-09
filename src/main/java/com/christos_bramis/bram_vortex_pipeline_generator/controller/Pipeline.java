@@ -7,8 +7,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -23,28 +25,26 @@ public class Pipeline {
         this.pipelineJobRepository = pipelineJobRepository;
     }
 
-    /**
-     * Endpoint που δέχεται το Webhook από τον Repo Analyzer.
-     * Πλέον το userId έρχεται από το επικυρωμένο JWT Token.
-     */
     @PostMapping("/generate/{analysisJobId}")
     public ResponseEntity<String> generatePipeline(
             @PathVariable String analysisJobId,
-            Authentication auth) { // <--- Λήψη του χρήστη από το Security Context
+            Authentication auth) {
 
+        // 1. Τραβάμε το raw Token String από το JWT principal
+        String token = ((Jwt) Objects.requireNonNull(auth.getPrincipal())).getTokenValue();
         String userId = auth.getName();
-        System.out.println("🚀 [PIPELINE CONTROLLER] Webhook received for Job: " + analysisJobId + " from User: " + userId);
+
+        System.out.println("🚀 [PIPELINE CONTROLLER] Webhook received. User: " + userId);
 
         try {
             String pipelineJobId = UUID.randomUUID().toString();
 
-            // Ξεκινάμε την παραγωγή (Async) χρησιμοποιώντας το userId από το Token
-            pipelineService.generateAndSavePipeline(pipelineJobId, analysisJobId, userId);
+            // 2. Περνάμε και το TOKEN ως παράμετρο στο Service
+            pipelineService.generateAndSavePipeline(pipelineJobId, analysisJobId, userId, token);
 
             return ResponseEntity.ok(pipelineJobId);
         } catch (Exception e) {
-            System.err.println("❌ [CONTROLLER ERROR]: " + e.getMessage());
-            return ResponseEntity.internalServerError().body("Error starting generation: " + e.getMessage());
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
 

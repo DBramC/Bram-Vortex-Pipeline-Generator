@@ -1,5 +1,6 @@
 package com.christos_bramis.bram_vortex_pipeline_generator.service;
 
+import ch.qos.logback.core.joran.spi.HttpUtil;
 import com.christos_bramis.bram_vortex_pipeline_generator.entity.AnalysisJob;
 import com.christos_bramis.bram_vortex_pipeline_generator.entity.PipelineJob;
 import com.christos_bramis.bram_vortex_pipeline_generator.repository.AnalysisJobRepository;
@@ -8,6 +9,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +28,7 @@ public class PipelineService {
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
 
+
     public PipelineService(PipelineJobRepository pipelineJobRepository,
                            AnalysisJobRepository analysisJobRepository,
                            ChatModel chatModel) {
@@ -34,7 +38,7 @@ public class PipelineService {
         this.objectMapper = new ObjectMapper();
     }
 
-    public void generateAndSavePipeline(String pipelineJobId, String analysisJobId, String userId) {
+    public void generateAndSavePipeline(String pipelineJobId, String analysisJobId, String userId, String token) {
         System.out.println("\n🚀 [VORTEX-PIPELINE] Starting Generation for Job: " + pipelineJobId);
 
         PipelineJob job = new PipelineJob();
@@ -125,12 +129,14 @@ public class PipelineService {
                 job.setPipelineZip(zipBytes);
                 job.setStatus("COMPLETED");
                 pipelineJobRepository.save(job);
+                notifyOrchestrator(analysisJobId, "PIPELINE", "COMPLETED", token);
                 System.out.println("✅ [PIPELINE] Success! ZIP size: " + zipBytes.length + " bytes.");
 
             } catch (Exception e) {
                 System.err.println("❌ [PIPELINE ERROR]: " + e.getMessage());
                 job.setStatus("FAILED");
                 pipelineJobRepository.save(job);
+                notifyOrchestrator(analysisJobId, "PIPELINE", "FAILED", token);
             }
         });
     }
@@ -155,6 +161,19 @@ public class PipelineService {
             return new HashMap<>();
         }
     }
+
+    private void notifyOrchestrator(String jobId, String service, String status, String token) {
+        String url = String.format("http://repo-analyzer-svc/dashboard/internal/callback/%s?service=%s&status=%s",
+                jobId, service, status);
+
+        RestClient internalClient = RestClient.create();
+        internalClient.post()
+                .uri(url)
+                .header("Authorization", "Bearer " + token) // 👈 Το token επιστρέφει στον Analyzer
+                .retrieve()
+                .toBodilessEntity();
+    }
+
 
     private byte[] createZipInMemory(Map<String, String> files) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
