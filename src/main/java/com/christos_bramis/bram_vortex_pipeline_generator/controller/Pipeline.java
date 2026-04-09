@@ -29,12 +29,10 @@ public class Pipeline {
     @PostMapping("/generate/{analysisJobId}")
     public ResponseEntity<String> generatePipeline(
             @PathVariable String analysisJobId,
-            @AuthenticationPrincipal Jwt jwt) {
+            Authentication auth) {
 
-        // 1. Τώρα μπορείς να πάρεις το Token και το UserID χωρίς κίνδυνο για Exception
-        String token = jwt.getTokenValue();
-        String userId = jwt.getSubject(); // Παίρνει το sub/username από το token
-
+        String userId = (String) auth.getPrincipal();
+        String token = (String) auth.getCredentials();
         System.out.println("🚀 [PIPELINE CONTROLLER] Webhook received. User: " + userId);
 
         try {
