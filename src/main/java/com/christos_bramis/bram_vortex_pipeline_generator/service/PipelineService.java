@@ -76,54 +76,55 @@ public class PipelineService {
 
                 // 2. AI Dispatch - CI/CD Expert Prompt (ΑΤΟΦΙΟ & Docker-Ready)
                 String prompt = String.format("""
-                    You are a Principal CI/CD Engineer. Your task is to generate a PRODUCTION-READY GitHub Actions workflow (`.github/workflows/deploy.yml`) to build, push, and deploy a containerized application using GitHub Packages (GHCR).
-                
-                    --- ARCHITECTURAL BLUEPRINT (JSON) ---
-                    %s
-                    --------------------------------------
-                    
-                    --- DEPLOYMENT TARGET ---
-                    Compute Type: %s
-                    -------------------------
+    You are a Principal CI/CD Engineer. Your task is to generate a PRODUCTION-READY GitHub Actions workflow (`.github/workflows/deploy.yml`) to build, push, and deploy a containerized application using GitHub Packages (GHCR).
 
-                    ENGINEERING REQUIREMENTS & STRICT CONSTRAINTS:
-                    1. **Trigger**: The pipeline MUST trigger on 'push' to the 'main' or 'master' branch.
-                    
-                    2. **Build & Push (GHCR EXCLUSIVELY)**:
-                       - Examine the Blueprint's 'ciCdMetadata'.
-                       - Log in to GitHub Container Registry (`ghcr.io`) using `${{ github.actor }}` and `${{ secrets.GITHUB_TOKEN }}`.
-                       - IF 'hasDockerfile' is false: First, set up the build environment (e.g., JDK), execute the 'buildCommands' to generate the artifact, dynamically create a basic Dockerfile in the pipeline to package it, and then build/push.
-                       - IF 'hasDockerfile' is true: Assume the project has a Dockerfile. Do NOT run separate 'buildCommands'. Just build the Docker image and push it to `ghcr.io/${{ github.repository }}:latest`. Do NOT use Docker Hub.
-
-                    3. **Deployment Step (Branching by Compute Type)**:
-                       - **IF Compute Type is 'VM' or 'Virtual Machine'**:
-                         - Use `appleboy/ssh-action@v1.0.3` to connect to the target Virtual Machine.
-                         - Authenticate using EXACTLY these secrets: `${{ secrets.VM_HOST }}`, `${{ secrets.VM_USER }}`, and `${{ secrets.VM_SSH_KEY }}`.
-                         - The SSH script MUST:
-                           a) Log in to `ghcr.io` with `${{ secrets.GITHUB_TOKEN }}`.
-                           b) Pull the latest image.
-                           c) Stop and remove the existing container gracefully (`docker stop app || true` and `docker rm app || true`).
-                           d) Run the new container in detached mode (`-d`) with restart policy `unless-stopped`.
-                           e) Map port %d (Host) to port %d (Container).
-                           f) Inject ALL sensitive database configurations from 'configurationSettings' as environment variables using GitHub Secrets (e.g., `-e SPRING_DATASOURCE_URL='${{ secrets.DB_URL }}'`).
-
-                       - **IF Compute Type is 'Kubernetes' or 'K8S'**:
-                         - Authenticate to the cluster using `${{ secrets.KUBECONFIG }}`.
-                         - Apply configurations or run `kubectl rollout restart deployment/<app-name>`.
-
-                       - **IF Compute Type is 'Managed Container'**:
-                         - Use standard cloud provider actions to update the target service/task definition.
-
-                    OUTPUT FORMAT (CRITICAL):
-                    - Respond ONLY with a SINGLE, VALID JSON object.
-                    - NO markdown blocks (e.g., no ```json).
-                    - NO conversational text.
+    --- ARCHITECTURAL BLUEPRINT (JSON) ---
+    %s
+    --------------------------------------
     
-                    JSON STRUCTURE:
-                    {
-                      ".github/workflows/deploy.yml": "<raw yaml content here>"
-                    }
-                    """, blueprintJson, computeType, targetPort, targetPort);
+    --- DEPLOYMENT TARGET ---
+    Compute Type: %s
+    -------------------------
+
+    ENGINEERING REQUIREMENTS & STRICT CONSTRAINTS:
+    1. **Trigger**: The pipeline MUST trigger on 'push' to the 'main' or 'master' branch.
+    
+    2. **Build & Push (GHCR EXCLUSIVELY)**:
+       - Examine the Blueprint's 'ciCdMetadata'.
+       - Log in to GitHub Container Registry (`ghcr.io`) using `${{ github.actor }}` and `${{ secrets.GITHUB_TOKEN }}`.
+       - **CRITICAL**: Docker repository names MUST be lowercase. Before building, you MUST include a step that converts the repository name to lowercase (e.g., using `${GITHUB_REPOSITORY,,}` in bash) and sets it as an environment variable for subsequent steps.
+       - IF 'hasDockerfile' is false: First, set up the build environment (e.g., JDK), execute the 'buildCommands' to generate the artifact, dynamically create a basic Dockerfile in the pipeline to package it, and then build/push.
+       - IF 'hasDockerfile' is true: Assume the project has a Dockerfile. Just build the Docker image and push it to `ghcr.io/<lowercase-repo-name>:latest`.
+
+    3. **Deployment Step (Branching by Compute Type)**:
+       - **IF Compute Type is 'VM' or 'Virtual Machine'**:
+         - Use `appleboy/ssh-action@v1.0.3` to connect to the target Virtual Machine.
+         - Authenticate using EXACTLY these secrets: `${{ secrets.VM_HOST }}`, `${{ secrets.VM_USER }}`, and `${{ secrets.VM_SSH_KEY }}`.
+         - The SSH script MUST:
+           a) Log in to `ghcr.io` with `${{ secrets.GITHUB_TOKEN }}`.
+           b) Pull the latest image (ENSURE you use the lowercase repository name).
+           c) Stop and remove the existing container gracefully (`docker stop app || true` and `docker rm app || true`).
+           d) Run the new container in detached mode (`-d`) with restart policy `unless-stopped`.
+           e) Map port %d (Host) to port %d (Container).
+           f) Inject ALL sensitive database configurations from 'configurationSettings' as environment variables using GitHub Secrets (e.g., `-e SPRING_DATASOURCE_URL='${{ secrets.DB_URL }}'`).
+
+       - **IF Compute Type is 'Kubernetes' or 'K8S'**:
+         - Authenticate to the cluster using `${{ secrets.KUBECONFIG }}`.
+         - Apply configurations or run `kubectl rollout restart deployment/<app-name>`.
+
+       - **IF Compute Type is 'Managed Container'**:
+         - Use standard cloud provider actions to update the target service/task definition.
+
+    OUTPUT FORMAT (CRITICAL):
+    - Respond ONLY with a SINGLE, VALID JSON object.
+    - NO markdown blocks (e.g., no ```json).
+    - NO conversational text.
+
+    JSON STRUCTURE:
+    {
+      ".github/workflows/deploy.yml": "<raw yaml content here>"
+    }
+    """, blueprintJson, computeType, targetPort, targetPort);
 
                 System.out.println("🧠 [PIPELINE] Calling AI...");
                 String aiResponse = chatModel.call(prompt);
