@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/pipeline/generate/**").authenticated()
                         .requestMatchers("/pipeline/download/**").authenticated()
                         .requestMatchers("/pipeline/status/**").authenticated()
+                        .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated()
                 )
 
