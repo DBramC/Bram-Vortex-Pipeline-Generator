@@ -43,8 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-        if (path.startsWith("/actuator/")) {
+        if (request.getRequestURI().startsWith("/actuator/")) {
             filterChain.doFilter(request, response);
             return; // Τέλος εδώ, μην ελέγξεις για JWT
         }
